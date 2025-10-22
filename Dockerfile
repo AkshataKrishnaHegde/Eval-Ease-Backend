@@ -1,28 +1,24 @@
-
-FROM openjdk:21-jdk
-# Set working directory inside container
+# Stage 1: build
+FROM maven:3.9.2-eclipse-temurin-21 AS build
 WORKDIR /app
 
-# Copy Maven wrapper and pom.xml first for caching dependencies
-COPY mvnw .
-COPY .mvn/ .mvn
+# Copy pom and mvnw first for caching dependencies
 COPY pom.xml .
+COPY .mvn/ .mvn
+COPY mvnw .
+RUN chmod +x mvnw
+RUN ./mvnw dependency:go-offline
 
-# Copy the source code
+# Copy source code
 COPY src ./src
 
-# Make the Maven wrapper executable
-RUN chmod +x mvnw
-
-# Build the Spring Boot app
+# Build JAR
 RUN ./mvnw clean package -DskipTests
 
-# The built JAR will be in target/ folder
-ARG JAR_FILE=target/*.jar
-COPY ${JAR_FILE} app.jar
+# Stage 2: run
+FROM openjdk:21-jdk-slim
+WORKDIR /app
+COPY --from=build /app/target/evalease-backend-0.0.1-SNAPSHOT.jar app.jar
 
-# Expose the default Spring Boot port
 EXPOSE 8080
-
-# Run the Spring Boot application
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "-jar", "app.jar"]
